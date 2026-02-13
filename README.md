@@ -1,4 +1,13 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## SKIFF Admin
+
+Internal moderation UI for listing and insurance reviews.
+
+## Default dev login
+
+When the API is seeded with `php artisan db:seed`, these credentials are created by `TestingUserSeeder` (unless overridden in API `.env`):
+
+- Email: `admin@skiff.test`
+- Password: `password`
 
 ## Getting Started
 
@@ -14,11 +23,19 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) if you are using Docker Compose from the SKIFF hub repo.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You can also run directly in this repo and open [http://localhost:3000](http://localhost:3000).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Docker (recommended with full infra)
+
+From `/Users/raarevalo96/dev/skiff/infra/docker`:
+
+```bash
+docker compose up -d
+```
+
+This starts API + DB + Redis + Mailpit + Admin.
 
 ## Learn More
 

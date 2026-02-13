@@ -47,7 +47,10 @@ async function handler(request: NextRequest, { params }: Params) {
     passthroughHeaders.set("content-type", responseContentType);
   }
 
-  return new Response(responseText, {
+  const noBodyStatuses = new Set([204, 205, 304]);
+  const body = noBodyStatuses.has(response.status) ? null : responseText;
+
+  return new Response(body, {
     status: response.status,
     headers: passthroughHeaders,
   });
