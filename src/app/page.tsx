@@ -13,7 +13,9 @@ import {
   AdminSection,
   ApiError,
   ListingPreviewResponse,
+  ListingPreview,
   LiveListing,
+  NotificationHealthResponse,
   ModerationAction,
   ModerationActionResponse,
   ModerationTab,
@@ -54,6 +56,7 @@ export default function AdminHomePage() {
 
   const [liveListings, setLiveListings] = useState<LiveListing[]>([]);
   const [liveListingsMeta, setLiveListingsMeta] = useState<PaginationMeta>(defaultMeta);
+  const [notificationHealth, setNotificationHealth] = useState<NotificationHealthResponse["data"] | null>(null);
 
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [previewData, setPreviewData] = useState<ListingPreviewResponse["data"] | null>(null);
@@ -70,6 +73,12 @@ export default function AdminHomePage() {
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedReview, setSelectedReview] = useState<ReviewDetailItem | null>(null);
+  const [isReviewDetailsLoading, setIsReviewDetailsLoading] = useState(false);
+  const [reviewDetailsError, setReviewDetailsError] = useState<string | null>(null);
+  const [revisionComparison, setRevisionComparison] = useState<{
+    current: ListingPreview;
+    proposed: ListingPreview;
+  } | null>(null);
 
   const hasToken = token.trim().length > 0;
 
@@ -187,6 +196,22 @@ export default function AdminHomePage() {
     [request]
   );
 
+  const loadNotificationHealth = useCallback(async () => {
+    if (!hasToken) {
+      setNotificationHealth(null);
+      return;
+    }
+
+    try {
+      const response = await request<NotificationHealthResponse>("/v1/admin/notifications/health", {
+        method: "GET",
+      });
+      setNotificationHealth(response.data);
+    } catch {
+      setNotificationHealth(null);
+    }
+  }, [hasToken, request]);
+
   const loadPreview = useCallback(
     async (kind: "listing" | "revision", id: number, origin: "moderation" | "live_listings") => {
       setIsPreviewLoading(true);
@@ -210,6 +235,7 @@ export default function AdminHomePage() {
       setQueue({ listing_revisions: [], insurances: [] });
       setActivities([]);
       setLiveListings([]);
+      setNotificationHealth(null);
       return;
     }
 
@@ -225,6 +251,7 @@ export default function AdminHomePage() {
         loadModerationQueue(),
         loadModerationActions(1, activityFilters),
         loadLiveListings(1),
+        loadNotificationHealth(),
       ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to load admin data.";
@@ -233,7 +260,15 @@ export default function AdminHomePage() {
     } finally {
       setIsAuthLoading(false);
     }
-  }, [hasToken, request, loadModerationQueue, loadModerationActions, loadLiveListings, activityFilters]);
+  }, [
+    hasToken,
+    request,
+    loadModerationQueue,
+    loadModerationActions,
+    loadLiveListings,
+    loadNotificationHealth,
+    activityFilters,
+  ]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(tokenStorageKey) ?? "";
@@ -247,6 +282,7 @@ export default function AdminHomePage() {
       setQueue({ listing_revisions: [], insurances: [] });
       setActivities([]);
       setLiveListings([]);
+      setNotificationHealth(null);
       return;
     }
 
@@ -297,6 +333,7 @@ export default function AdminHomePage() {
     setQueue({ listing_revisions: [], insurances: [] });
     setActivities([]);
     setLiveListings([]);
+    setNotificationHealth(null);
     setErrorMessage(null);
   }
 
@@ -390,6 +427,7 @@ export default function AdminHomePage() {
         loadModerationQueue(),
         loadModerationActions(1, activityFilters),
         loadLiveListings(1),
+        loadNotificationHealth(),
       ]);
       return;
     }
@@ -407,10 +445,15 @@ export default function AdminHomePage() {
   }
 
   function openReviewDetails(kind: "listing_revision" | "insurance", id: number) {
+    setRevisionComparison(null);
+    setReviewDetailsError(null);
+    setIsReviewDetailsLoading(false);
+
     if (kind === "listing_revision") {
       const item = queue.listing_revisions.find((review) => review.id === id);
       if (item) {
         setSelectedReview({ kind, item });
+        void loadRevisionComparison(item.id, item.listing_id);
       }
       return;
     }
@@ -418,6 +461,29 @@ export default function AdminHomePage() {
     const item = queue.insurances.find((review) => review.id === id);
     if (item) {
       setSelectedReview({ kind, item });
+    }
+  }
+
+  async function loadRevisionComparison(revisionId: number, listingId: number) {
+    setIsReviewDetailsLoading(true);
+    setReviewDetailsError(null);
+    try {
+      const [currentResponse, proposedResponse] = await Promise.all([
+        request<ListingPreviewResponse>(`/v1/admin/listings/${listingId}/preview`, { method: "GET" }),
+        request<ListingPreviewResponse>(`/v1/admin/listing-revisions/${revisionId}/preview`, {
+          method: "GET",
+        }),
+      ]);
+
+      setRevisionComparison({
+        current: currentResponse.data.listing,
+        proposed: proposedResponse.data.listing,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load revision changes.";
+      setReviewDetailsError(message);
+    } finally {
+      setIsReviewDetailsLoading(false);
     }
   }
 
@@ -522,7 +588,12 @@ export default function AdminHomePage() {
           )}
 
           {selectedSection === "dashboard" && (
-            <DashboardSection queue={queue} activities={activities} liveListingsMeta={liveListingsMeta} />
+            <DashboardSection
+              queue={queue}
+              activities={activities}
+              liveListingsMeta={liveListingsMeta}
+              notificationHealth={notificationHealth}
+            />
           )}
 
           {selectedSection === "moderation" && (
@@ -571,7 +642,18 @@ export default function AdminHomePage() {
         </section>
       </div>
 
-      <ReviewDetailModal selectedReview={selectedReview} onClose={() => setSelectedReview(null)} />
+      <ReviewDetailModal
+        selectedReview={selectedReview}
+        onClose={() => {
+          setSelectedReview(null);
+          setRevisionComparison(null);
+          setReviewDetailsError(null);
+          setIsReviewDetailsLoading(false);
+        }}
+        revisionComparison={revisionComparison}
+        isRevisionComparisonLoading={isReviewDetailsLoading}
+        revisionComparisonError={reviewDetailsError}
+      />
 
       <PreviewDrawer
         isOpen={isPreviewOpen}

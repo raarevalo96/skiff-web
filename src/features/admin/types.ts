@@ -116,6 +116,7 @@ export type ListingPreview = {
   country?: string | null;
   hero_image_url?: string | null;
   gallery_image_urls?: string[] | null;
+  video_url?: string | null;
   price_per_day_cents?: number | null;
   rating?: number | null;
   review_count?: number | null;
@@ -140,6 +141,31 @@ export type ListingPreviewResponse = {
       id: number;
       status: string;
       submitted_at: string | null;
+    };
+  };
+};
+
+export type NotificationHealthResponse = {
+  data: {
+    apns: {
+      enabled: boolean;
+      configured: boolean;
+      environment: string;
+      topic: string | null;
+      missing: string[];
+    };
+    queue: {
+      connection: string;
+      name: string;
+      tries: number;
+      backoff: number[];
+    };
+    metrics: {
+      attempted: number;
+      success: number;
+      retryable_failure: number;
+      permanent_failure: number;
+      token_pruned: number;
     };
   };
 };

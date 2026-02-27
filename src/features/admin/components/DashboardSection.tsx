@@ -1,4 +1,4 @@
-import { ModerationAction, PaginationMeta, ReviewQueue } from "../types";
+import { ModerationAction, NotificationHealthResponse, PaginationMeta, ReviewQueue } from "../types";
 import { formatDate, humanizeAction } from "../utils";
 import { MetricCard } from "./Primitives";
 
@@ -6,10 +6,20 @@ type DashboardSectionProps = {
   queue: ReviewQueue;
   activities: ModerationAction[];
   liveListingsMeta: PaginationMeta;
+  notificationHealth: NotificationHealthResponse["data"] | null;
 };
 
-export function DashboardSection({ queue, activities, liveListingsMeta }: DashboardSectionProps) {
+export function DashboardSection({
+  queue,
+  activities,
+  liveListingsMeta,
+  notificationHealth,
+}: DashboardSectionProps) {
   const totalPending = queue.listing_revisions.length + queue.insurances.length;
+  const attempts = notificationHealth?.metrics.attempted ?? 0;
+  const delivered = notificationHealth?.metrics.success ?? 0;
+  const deliveryRate = attempts > 0 ? Math.round((delivered / attempts) * 100) : 0;
+  const missingConfig = notificationHealth?.apns.missing ?? [];
 
   return (
     <>
@@ -18,6 +28,68 @@ export function DashboardSection({ queue, activities, liveListingsMeta }: Dashbo
         <MetricCard label="Listing revisions" value={queue.listing_revisions.length} />
         <MetricCard label="Insurance reviews" value={queue.insurances.length} />
         <MetricCard label="Live listings" value={liveListingsMeta.total} />
+      </section>
+
+      <section className="rounded-3xl bg-white p-6 shadow-sm">
+        <h3 className="text-xl font-semibold">Push notifications</h3>
+        <p className="mt-1 text-sm text-slate-500">APNs health snapshot from API + queue metrics.</p>
+
+        {!notificationHealth && (
+          <p className="mt-4 rounded-xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+            Notification health is unavailable.
+          </p>
+        )}
+
+        {notificationHealth && (
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <MetricCard label="Attempted" value={attempts} />
+              <MetricCard label="Delivered" value={delivered} />
+              <MetricCard label="Delivery rate (%)" value={deliveryRate} />
+              <MetricCard label="Tokens pruned" value={notificationHealth.metrics.token_pruned} />
+            </div>
+
+            <article className="rounded-2xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-800">APNs</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    notificationHealth.apns.configured
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {notificationHealth.apns.configured ? "Configured" : "Needs setup"}
+                </span>
+                {!notificationHealth.apns.enabled && (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    Disabled
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                Topic: {notificationHealth.apns.topic ?? "Not set"} • Env: {notificationHealth.apns.environment}
+              </p>
+              {missingConfig.length > 0 && (
+                <p className="mt-2 text-sm text-amber-700">Missing: {missingConfig.join(", ")}</p>
+              )}
+            </article>
+
+            <article className="rounded-2xl border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-800">Queue policy</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Connection: {notificationHealth.queue.connection} • Queue: {notificationHealth.queue.name}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Retries: {notificationHealth.queue.tries} • Backoff: {notificationHealth.queue.backoff.join(", ")}s
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Failures: {notificationHealth.metrics.retryable_failure} retryable,{" "}
+                {notificationHealth.metrics.permanent_failure} permanent
+              </p>
+            </article>
+          </div>
+        )}
       </section>
 
       <section className="rounded-3xl bg-white p-6 shadow-sm">
