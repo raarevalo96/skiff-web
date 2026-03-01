@@ -20,6 +20,9 @@ export function DashboardSection({
   const delivered = notificationHealth?.metrics.success ?? 0;
   const deliveryRate = attempts > 0 ? Math.round((delivered / attempts) * 100) : 0;
   const missingConfig = notificationHealth?.apns.missing ?? [];
+  const failedJobsCount = notificationHealth?.observability.failed_jobs.count ?? 0;
+  const recentFailedJobs = notificationHealth?.observability.failed_jobs.recent ?? [];
+  const recentDeliveryFailures = notificationHealth?.observability.recent_delivery_failures ?? [];
 
   return (
     <>
@@ -87,6 +90,41 @@ export function DashboardSection({
                 Failures: {notificationHealth.metrics.retryable_failure} retryable,{" "}
                 {notificationHealth.metrics.permanent_failure} permanent
               </p>
+            </article>
+
+            <article className="rounded-2xl border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-800">Failed queue jobs</p>
+              <p className="mt-2 text-sm text-slate-600">
+                {failedJobsCount} failed on notifications queue
+                {notificationHealth.observability.failed_jobs.last_failed_at
+                  ? ` • Last: ${formatDate(notificationHealth.observability.failed_jobs.last_failed_at)}`
+                  : ""}
+              </p>
+              <div className="mt-2 space-y-2">
+                {recentFailedJobs.length === 0 && (
+                  <p className="text-sm text-slate-500">No failed queue jobs recorded.</p>
+                )}
+                {recentFailedJobs.map((job) => (
+                  <p key={job.id} className="text-sm text-slate-600">
+                    #{job.id} • {formatDate(job.failed_at)} • {job.summary}
+                  </p>
+                ))}
+              </div>
+            </article>
+
+            <article className="rounded-2xl border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-800">Recent push delivery failures</p>
+              <div className="mt-2 space-y-2">
+                {recentDeliveryFailures.length === 0 && (
+                  <p className="text-sm text-slate-500">No recent push delivery failures.</p>
+                )}
+                {recentDeliveryFailures.map((failure) => (
+                  <p key={failure.id} className="text-sm text-slate-600">
+                    {formatDate(failure.attempted_at)} • thread #{failure.thread_id ?? "?"} •{" "}
+                    {failure.reason ?? "unknown"} ({failure.status_code ?? "n/a"})
+                  </p>
+                ))}
+              </div>
             </article>
           </div>
         )}

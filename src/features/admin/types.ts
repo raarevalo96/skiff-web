@@ -167,6 +167,29 @@ export type NotificationHealthResponse = {
       permanent_failure: number;
       token_pruned: number;
     };
+    observability: {
+      failed_jobs: {
+        count: number;
+        last_failed_at: string | null;
+        recent: Array<{
+          id: number;
+          failed_at: string;
+          summary: string;
+        }>;
+      };
+      recent_delivery_failures: Array<{
+        id: number;
+        thread_id: number | null;
+        message_id: number | null;
+        recipient_user_id: number | null;
+        user_push_token_id: number | null;
+        status_code: number | null;
+        reason: string | null;
+        retryable_failure: boolean;
+        token_pruned: boolean;
+        attempted_at: string | null;
+      }>;
+    };
   };
 };
 
